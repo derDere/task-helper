@@ -57,7 +57,8 @@ class Tasks(UIBase):
                             icon_color=ft.Colors.PRIMARY,
                             icon_size=40,
                             tooltip="Done",
-                            on_click=lambda e: 1,
+                            data=task,
+                            on_click=lambda e: self.task_manager.complete_task(e.control.data),
                         )
                     ]
                 )
