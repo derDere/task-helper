@@ -49,16 +49,24 @@ class Tasks(UIBase):
                         ),
                         ft.Column(
                             alignment=ft.MainAxisAlignment.CENTER,
+                            horizontal_alignment=ft.CrossAxisAlignment.END,
                             controls=[
-                                ft.IconButton(
-                                    icon=ft.Icons.CIRCLE_OUTLINED if not task.completed else ft.Icons.CHECK_CIRCLE,
-                                    icon_color=ft.Colors.PRIMARY if not task.completed else ft.Colors.GREEN,
-                                    icon_size=40,
-                                    tooltip="Done",
-                                    data=task,
-                                    on_click=lambda e: self.task_manager.complete_task(e.control.data),
+                                ft.Row(
+                                    expand=True,
+                                    alignment=ft.MainAxisAlignment.END,
+                                    controls=[
+                                        ft.IconButton(
+                                            icon=ft.Icons.CIRCLE_OUTLINED if not task.completed else ft.Icons.CHECK_CIRCLE,
+                                            icon_color=ft.Colors.PRIMARY if not task.completed else ft.Colors.GREEN,
+                                            icon_size=40,
+                                            tooltip="Done",
+                                            data=task,
+                                            on_click=lambda e: self.task_manager.complete_task(e.control.data),
+                                        )
+                                    ]
                                 ),
                                 ft.Row(
+                                    expand=True,
                                     visible=bool(task.due_date),
                                     alignment=ft.MainAxisAlignment.END,
                                     controls=[
