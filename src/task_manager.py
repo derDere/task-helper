@@ -1,32 +1,55 @@
 
 
+from datetime import date, datetime
 import json
 
 
 class Task:
-    def __init__(self, title: str, description: str, due_date: str, completed: bool = False, importance: int = 1):
+    def __init__(self, title: str, description: str, due_date: date|None, completed: bool = False, importance: int = 1):
         self.title = title
         self.description = description
         self.due_date = due_date
         self.completed = completed
+        self.completed_at = None
         self.importance = importance
 
     def to_dict(self):
         return {
             "title": self.title,
             "description": self.description,
-            "due_date": self.due_date,
+            "due_date": self.due_date.isoformat() if self.due_date else None,
             "completed": self.completed,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "importance": self.importance,
         }
 
     @staticmethod
     def from_dict(data: dict):
-        return Task(
+        # Parse due_date from string to date object if it exists
+        due_date = None
+        if data.get("due_date"):
+            try:
+                due_date = datetime.fromisoformat(data["due_date"]).date()
+            except (ValueError, TypeError):
+                due_date = None
+        
+        # Parse completed_at from string to datetime object if it exists
+        completed_at = None
+        if data.get("completed_at"):
+            try:
+                completed_at = datetime.fromisoformat(data["completed_at"])
+            except (ValueError, TypeError):
+                completed_at = None
+        
+        task = Task(
             title=data["title"],
             description=data["description"],
-            due_date=data["due_date"],
+            due_date=due_date,
             completed=data.get("completed", False),
+            importance=data.get("importance", 1),
         )
+        task.completed_at = completed_at
+        return task
 
 
 class TaskManager:
@@ -50,7 +73,6 @@ class TaskManager:
             with open(self.storage_file, "r") as f:
                 data = json.load(f)
                 return [Task.from_dict(task_data) for task_data in data]
-            _raise_tasks_updated()
         except FileNotFoundError:
             return []
 
@@ -70,15 +92,26 @@ class TaskManager:
     
     def complete_task(self, task: Task):
         task.completed = True
+        task.completed_at = datetime.now()
+        self.save_tasks()
+        self._raise_tasks_updated()
+
+    def undo_task(self, task: Task):
+        task.completed = False
+        task.completed_at = None
         self.save_tasks()
         self._raise_tasks_updated()
 
     def get_all_tasks(self):
         return self.tasks
 
-    def get_task_for_date(self, date: str):
-        return [task for task in self.tasks if task.due_date == date]
+    def get_task_for_date(self, target_date: date):
+        return [task for task in self.tasks if task.due_date == target_date]
 
     def get_top_priority_tasks(self, n: int = 3):
         sorted_tasks = sorted(self.tasks, key=lambda t: (t.completed, -t.importance))
         return sorted_tasks[:n]
+
+    def get_last_completed(self):
+        completed_tasks = [task for task in self.tasks if task.completed and task.completed_at]
+        return sorted(completed_tasks, key=lambda t: t.completed_at, reverse=True)

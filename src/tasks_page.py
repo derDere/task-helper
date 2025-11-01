@@ -24,6 +24,7 @@ class Tasks(UIBase):
             for task in tasks:
                 card = self._task_to_card(task)
                 self.tast_column.controls.append(card)
+        self.parent.page.update()
 
     def _task_to_card(self, task):
         card = ft.Card(
@@ -43,22 +44,33 @@ class Tasks(UIBase):
                                 ft.Text(
                                     task.description,
                                     style=ft.TextThemeStyle.BODY_MEDIUM
-                                ),
-                                ft.Text(
-                                    f"{task.due_date}",
-                                    style=ft.TextThemeStyle.BODY_SMALL,
-                                    text_align=ft.TextAlign.RIGHT,
-                                    color=ft.Colors.SECONDARY,
-                                ),
+                                )
                             ]
                         ),
-                        ft.IconButton(
-                            icon=ft.Icons.CIRCLE_OUTLINED,
-                            icon_color=ft.Colors.PRIMARY,
-                            icon_size=40,
-                            tooltip="Done",
-                            data=task,
-                            on_click=lambda e: self.task_manager.complete_task(e.control.data),
+                        ft.Column(
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            controls=[
+                                ft.IconButton(
+                                    icon=ft.Icons.CIRCLE_OUTLINED if not task.completed else ft.Icons.CHECK_CIRCLE,
+                                    icon_color=ft.Colors.PRIMARY if not task.completed else ft.Colors.GREEN,
+                                    icon_size=40,
+                                    tooltip="Done",
+                                    data=task,
+                                    on_click=lambda e: self.task_manager.complete_task(e.control.data),
+                                ),
+                                ft.Row(
+                                    visible=bool(task.due_date),
+                                    alignment=ft.MainAxisAlignment.END,
+                                    controls=[
+                                        ft.Text(
+                                            f"{task.due_date}" if task.due_date else "",
+                                            style=ft.TextThemeStyle.BODY_SMALL,
+                                            text_align=ft.TextAlign.RIGHT,
+                                            color=ft.Colors.SECONDARY,
+                                        )
+                                    ]
+                                )
+                            ]
                         )
                     ]
                 )
