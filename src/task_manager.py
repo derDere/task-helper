@@ -33,12 +33,24 @@ class TaskManager:
     def __init__(self, storage_file: str = "tasks.json"):
         self.storage_file = storage_file
         self.tasks = self.load_tasks()
+        self.callbacks = []
+    
+    def on_tasks_updated(self, callback):
+        self.callbacks.append(callback)
+
+    def _raise_tasks_updated(self):
+        for callback in self.callbacks:
+            try:                
+                callback()
+            except Exception as e:
+                print(f"Error in callback: {e}")
 
     def load_tasks(self):
         try:
             with open(self.storage_file, "r") as f:
                 data = json.load(f)
                 return [Task.from_dict(task_data) for task_data in data]
+            _raise_tasks_updated()
         except FileNotFoundError:
             return []
 
@@ -49,10 +61,17 @@ class TaskManager:
     def add_task(self, task: Task):
         self.tasks.append(task)
         self.save_tasks()
+        self._raise_tasks_updated()
 
     def remove_task(self, task: Task):
         self.tasks.remove(task)
         self.save_tasks()
+        self._raise_tasks_updated()
+    
+    def complete_task(self, task: Task):
+        task.completed = True
+        self.save_tasks()
+        self._raise_tasks_updated()
 
     def get_all_tasks(self):
         return self.tasks
