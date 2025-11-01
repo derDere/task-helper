@@ -1,0 +1,20 @@
+
+
+import flet as ft
+
+from ui_base import UIBase
+
+
+class Organizer(UIBase):
+
+    def __init__(self, parent):
+        super().__init__(parent)
+
+    def _get_content(self, page:ft.Page):
+        content = ft.Column(
+            controls=[
+                ft.Text("This is the Organize Page"),
+            ]
+        )
+
+        return content
