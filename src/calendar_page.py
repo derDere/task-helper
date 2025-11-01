@@ -1,6 +1,6 @@
 
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import flet as ft
 
 from ui_base import UIBase
@@ -13,6 +13,7 @@ class Calendar(UIBase):
         super().__init__(parent)
         self.task_manager = task_manager
         self.calendar_content = None
+        self.day_content = None
     
     def _day_content(self, day_date: datetime):
         date = day_date.strftime("%d.")
@@ -96,12 +97,112 @@ class Calendar(UIBase):
                     expand=True,
                     height=80,
                     bgcolor=bg,
-                    border_radius=ft.border_radius.all(4)
+                    border_radius=ft.border_radius.all(4),
+                    data=day_date,
+                    on_click=lambda e: self._show_day_tasks(e.control.data)
                 )
                 week_row.controls.append(day_item)
             self.calendar_content.controls.append(week_row)
+    
+    def _back_to_calendar(self):
+        self.day_content.visible = False
+        self.calendar_content.visible = True
+        self.parent.page.update()
+    
+    def _show_day_tasks(self, day_date: date|datetime):
+        self.day_content.controls.clear()
+        if isinstance(day_date, datetime):
+            day_date = day_date.date()
+        tasks = self.task_manager.get_task_for_date(day_date)
+        if len(tasks) == 0:
+            return
+
+        top = ft.Row(
+            expand=True,
+            controls=[
+                ft.Text(
+                    day_date.strftime('%a: %d.%m.%Y'),
+                    size=18,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.PRIMARY,
+                    expand=True
+                ),
+                ft.FilledButton(
+                    content=ft.Row(
+                        controls=[
+                            ft.Icon(ft.Icons.ARROW_BACK),
+                            ft.Text("Back"),
+                            ft.Icon(ft.Icons.CALENDAR_MONTH),
+                        ]
+                    ),
+                    tooltip="Back to Calendar",
+                    on_click=lambda e: self._back_to_calendar()
+                )
+            ]
+        )
+
+        self.day_content.controls.append(top)
+
+        for task in tasks:
+            task_item = ft.Container(
+                content=ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    expand=True,
+                    controls=[
+                        ft.Column(
+                            controls=[
+                                ft.Text(
+                                    task.title,
+                                    size=16,
+                                    weight=ft.FontWeight.BOLD
+                                ),
+                                ft.Text(
+                                    task.description,
+                                    size=14,
+                                    color=ft.Colors.ON_SURFACE_VARIANT
+                                )
+                            ]
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.CIRCLE_OUTLINED if not task.completed else ft.Icons.CHECK_CIRCLE,
+                            icon_color=ft.Colors.PRIMARY if not task.completed else ft.Colors.GREEN,
+                            icon_size=40,
+                            tooltip="Completed" if task.completed else "Uncompleted",
+                            data=task,
+                            on_click=self._task_icon_click,
+                        )
+                    ]
+                ),
+                padding=ft.padding.all(10),
+                margin=ft.margin.only(bottom=5),
+                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
+                border_radius=ft.border_radius.all(4),
+                bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST
+            )
+            self.day_content.controls.append(task_item)
+        
+        self.calendar_content.visible = False
+        self.day_content.visible = True
+        self.parent.page.update()
+    
+    def _task_icon_click(self, e):
+        task = e.control.data
+        if task.completed:
+            self.task_manager.undo_task(task)
+        else:
+            self.task_manager.complete_task(task)
+        e.control.icon = ft.Icons.CIRCLE_OUTLINED if not task.completed else ft.Icons.CHECK_CIRCLE
+        e.control.icon_color = ft.Colors.PRIMARY if not task.completed else ft.Colors.GREEN
+        e.control.tooltip = "Completed" if task.completed else "Uncompleted"
+        self.parent.page.update()
 
     def _get_content(self, page:ft.Page):
+
+        self.day_content = ft.Column(
+            expand=True,
+            spacing=20,
+            visible=False
+        )
 
         self.calendar_content = ft.Column(
             expand=True,
@@ -110,4 +211,12 @@ class Calendar(UIBase):
         
         self._generate_calendar()
 
-        return self.calendar_content
+        content = ft.Column(
+            expand=True,
+            controls=[
+                self.calendar_content,
+                self.day_content
+            ]
+        )
+
+        return content
