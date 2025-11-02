@@ -10,14 +10,15 @@ def uuid4():
 
 
 class Task:
-    def __init__(self, title: str, description: str, due_date: date|None = None, completed: bool = False, importance: int = 1):
+    def __init__(self, title: str, description: str, due_date: date|None = None, completed: bool = False, elo: int = 1000):
         self.id = uuid4()
         self.title = title
         self.description = description
         self.due_date = due_date
         self.completed = completed
         self.completed_at = None
-        self.importance = importance
+        self.elo = elo
+        self.new_elo = 1000 # not saved, used for temporary calculations
 
     def to_dict(self):
         return {
@@ -27,7 +28,7 @@ class Task:
             "due_date": self.due_date.isoformat() if self.due_date else None,
             "completed": self.completed,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
-            "importance": self.importance,
+            "elo": self.elo,
         }
 
     @staticmethod
@@ -53,7 +54,7 @@ class Task:
             description=data["description"],
             due_date=due_date,
             completed=data.get("completed", False),
-            importance=data.get("importance", 1),
+            elo=data.get("elo", 1000),
         )
         task.id = data.get("id", uuid4())
         task.completed_at = completed_at
@@ -125,7 +126,7 @@ class TaskManager:
         self._raise_tasks_updated()
 
     def get_all_tasks(self):
-        return self.tasks
+        return sorted(self.tasks, key=lambda t: (t.completed, -t.elo))
 
     def get_task_for_date(self, target_date: date|datetime):
         if isinstance(target_date, datetime):
@@ -133,28 +134,9 @@ class TaskManager:
         return [task for task in self.tasks if task.due_date == target_date]
 
     def get_top_priority_tasks(self, n: int = 3):
-        sorted_tasks = sorted(self.tasks, key=lambda t: (t.completed, -t.importance))
+        sorted_tasks = sorted(self.tasks, key=lambda t: (t.completed, -t.elo))
         return sorted_tasks[:n]
 
     def get_last_completed(self):
         completed_tasks = [task for task in self.tasks if task.completed and task.completed_at]
         return sorted(completed_tasks, key=lambda t: t.completed_at, reverse=True)
-    
-    def _renormalize_importance(self):
-        tasks = sorted(self.tasks, key=lambda t: t.importance, reverse=True)
-        for index, task in enumerate(tasks):
-            task.importance = len(tasks) - index
-    
-    def priorize_above(self, task: Task, other: Task):
-        if task == other:
-            return
-        if task.importance > other.importance:
-            return
-        new_importance = other.importance + 1
-        tasks_above = [t for t in self.tasks if t.importance >= new_importance and t != task]
-        for t in tasks_above:
-            t.importance += 1
-        task.importance = new_importance
-        self._renormalize_importance()
-        self.save_tasks()
-        self._raise_tasks_updated()

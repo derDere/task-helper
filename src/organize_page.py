@@ -1,9 +1,21 @@
 
 
 import flet as ft
+import math
+import random
 
 from ui_base import UIBase
 from task_manager import TaskManager, Task
+
+
+def estimated_comparisons(n: int) -> int:
+    """
+    Returns the theoretical minimum number of comparisons
+    needed to fully sort n items (O(n log₂ n) estimate).
+    """
+    if n <= 1:
+        return 0
+    return int(n * math.log2(n))
 
 
 class TaskItem:
@@ -12,6 +24,7 @@ class TaskItem:
         self.task = task
         self.task_manager = tast_manager
         self.page = page
+        self.edit_button = None
         self.delete_button = None
         self.confirm_delete_btn = None
         self.cancel_delete_btn = None
@@ -20,6 +33,9 @@ class TaskItem:
         self.date_picker = None
         self.completet_at_text = None
         self.item = None
+        self.title_txb = None
+        self.description_txb = None
+        self.edit_dialog = None
     
     def _delete_due_date(self, e):
         self.task.due_date = None
@@ -67,7 +83,52 @@ class TaskItem:
         self.completet_at_text.value = f"Completed: {task.completed_at.strftime('%Y-%m-%d %H:%M')}" if task.completed and task.completed_at else ""
         self.page.update()
     
+    def _edit_task_dialog(self, e):
+        self.title_txb.value = self.task.title
+        self.description_txb.value = self.task.description
+        self.page.open(self.edit_dialog)
+
+    def _save_task_edits(self, e):
+        self.task.title = self.title_txb.value
+        self.task.description = self.description_txb.value
+        self.task_manager.trigger_save()
+        self.item.content.controls[0].controls[1].value = self.task.title
+        self.item.content.controls[1].value = self.task.description
+        self.page.close(self.edit_dialog)
+        self.page.update()
+    
     def get_item(self):
+        self.title_txb = ft.TextField(
+            value=self.task.title,
+            label="Title",
+            width=300
+        )
+        self.description_txb = ft.TextField(
+            value=self.task.description,
+            label="Description",
+            width=300,
+            multiline=True,
+            max_lines=5
+        )
+        self.edit_dialog = ft.AlertDialog(
+            title=ft.Text("Edit Task"),
+            content=ft.Column(
+                controls=[
+                    self.title_txb,
+                    self.description_txb
+                ]
+            ),
+            actions=[
+                ft.TextButton(
+                    text="Cancel",
+                    on_click=lambda e: self.page.close(self.edit_dialog)
+                ),
+                ft.ElevatedButton(
+                    text="Save",
+                    on_click=self._save_task_edits
+                )
+            ]
+        )
         self.date_picker = ft.DatePicker(
             value=self.task.due_date,
             on_change=self._date_picker_changed
@@ -107,12 +168,18 @@ class TaskItem:
             f"Completed: {self.task.completed_at.strftime('%Y-%m-%d %H:%M')}" if self.task.completed and self.task.completed_at else "",
             style=ft.TextStyle(size=12, color=ft.Colors.ON_SURFACE_VARIANT)
         )
+        self.edit_button = ft.IconButton(
+            icon=ft.Icons.EDIT,
+            on_click=self._edit_task_dialog
+        )
         self.item = ft.Container(
             content=ft.Column(
                 controls=[
                     ft.Row(
                         controls=[
+                            self.edit_button,
                             ft.Text(self.task.title, style=ft.TextStyle(size=18, weight=ft.FontWeight.BOLD)),
+                            ft.Text(f"ELO: {self.task.elo}", style=ft.TextStyle(size=14, color=ft.Colors.ON_SURFACE_VARIANT)),
                             ft.Container(expand=True),
                             self.date_del_btn,
                             self.date_picker_btn
@@ -152,201 +219,107 @@ class TaskSortPage(UIBase):
         self.top_tasks_container = None
         self.bottom_tasks_container = None
         self.sort_complete_text = None
+        self.progess_bar = None
         self.priorities = {}
+        self.K = 32  # Lernrate; kleiner = stabiler, größer = schneller
+        self._max_rounds = 50      # maximale Vergleichsanzahl pro Session
+        self._rounds_done = 0
     
-    def _get_priority_key(self, task_a, task_b):
+    def _get_pair_key(self, task_a, task_b):
         tab = [task_a.id, task_b.id]
         tab.sort()
         return f"{tab[0]}_{tab[1]}"
-    
-    def _find_priority_recursively(self, task_a, task_b, visited=None, depth=0):
-        # die genaue Priorität zwischen task_a und task_b ist in der Kombination eventuell noch nicht definiert
-        # aber kann möglicherise ermittelt werden in dem man die beziehungen zu anderen Tasks untersucht
-        # zum Beispiel wenn task_a > task_c und task_c > task_b dann ist task_a > task_b
-        # diese funktion soll das rekursiv versuchen zu ermitteln und falls ja einen key, value tupple zurückgeben
-        # oder none wenn nicht möglich
-        
-        # Prevent excessive recursion depth
-        MAX_DEPTH = 30
-        if depth > MAX_DEPTH:
-            print(f"[RECURSIVE] Max recursion depth {MAX_DEPTH} reached, stopping")
-            return None
-        
-        print(f"[RECURSIVE] Depth {depth}: Checking priority between '{task_a.title}' and '{task_b.title}'")
-        
-        if visited is None:
-            visited = set()
-            print(f"[RECURSIVE] Starting new recursive search, visited set initialized")
-        
-        # Avoid infinite loops - use normalized key
-        pair_key = self._get_priority_key(task_a, task_b)
-        print(f"[RECURSIVE] Pair key: {pair_key}")
-        
-        if pair_key in visited:
-            print(f"[RECURSIVE] Already visited {pair_key}, avoiding infinite loop")
-            return None
-        visited.add(pair_key)
-        print(f"[RECURSIVE] Added {pair_key} to visited set, size now: {len(visited)}")
-        
-        # Check direct relationship
-        if pair_key in self.priorities:
-            print(f"[RECURSIVE] Found direct relationship: {pair_key} -> {self.priorities[pair_key]}")
-            return (pair_key, self.priorities[pair_key])
-        
-        # Only check direct transitive relationships (no deep recursion)
-        # This prevents infinite loops while still finding simple A>C>B relationships
-        all_tasks = [t for t in self.task_manager.get_all_tasks() if not t.completed]
-        print(f"[RECURSIVE] Checking {len(all_tasks)} incomplete tasks for direct transitive relationships")
-        
-        for i, intermediate_task in enumerate(all_tasks):
-            if intermediate_task.id == task_a.id or intermediate_task.id == task_b.id:
-                continue
-            
-            # Check if task_a > intermediate_task and intermediate_task > task_b
-            key_a_to_c = self._get_priority_key(task_a, intermediate_task)
-            key_c_to_b = self._get_priority_key(intermediate_task, task_b)
-            
-            if (key_a_to_c in self.priorities and self.priorities[key_a_to_c] == task_a.id and
-                key_c_to_b in self.priorities and self.priorities[key_c_to_b] == intermediate_task.id):
-                print(f"[RECURSIVE] Found transitive relationship: {task_a.title} > {intermediate_task.title} > {task_b.title}")
-                return (pair_key, task_a.id)
-            
-            # Check if task_b > intermediate_task and intermediate_task > task_a
-            key_b_to_c = self._get_priority_key(task_b, intermediate_task)
-            key_c_to_a = self._get_priority_key(intermediate_task, task_a)
-            
-            if (key_b_to_c in self.priorities and self.priorities[key_b_to_c] == task_b.id and
-                key_c_to_a in self.priorities and self.priorities[key_c_to_a] == intermediate_task.id):
-                print(f"[RECURSIVE] Found reverse transitive relationship: {task_b.title} > {intermediate_task.title} > {task_a.title}")
-                return (pair_key, task_b.id)
-        
-        print(f"[RECURSIVE] No priority relationship found between '{task_a.title}' and '{task_b.title}'")
-        return None
+
+    def _expected_score(self, rating_a, rating_b):
+        """Berechnet erwarteten Sieganteil nach Elo-Formel."""
+        return 1 / (1 + 10 ** ((rating_b - rating_a) / 400))
+
+    def _update_elo(self, winner, loser):
+        """Aktualisiert Elo-Werte basierend auf Sieg und Niederlage."""
+        expected_winner = self._expected_score(winner.new_elo, loser.new_elo)
+        expected_loser = self._expected_score(loser.new_elo, winner.new_elo)
+
+        winner.new_elo += self.K * (1 - expected_winner)
+        loser.new_elo += self.K * (0 - expected_loser)
+
+    def _reset_elos(self):
+        """Setzt alle Tasks auf Startwert zurück."""
+        for t in self.task_manager.get_all_tasks():
+            t.new_elo = 1000
 
     def _sort(self):
-        # basically bubble sort but to compare we will find f"{task_a.id}_{task_b.id}" in priorities to find the better tast.id
-        # if not found we will call _pause_sorting_on(task_a, task_b) and stop the sorting until user provides input
-        # after the input the _sort will be called again
+        """Startet oder setzt den Sortiervorgang fort."""
+        tasks = [t for t in self.task_manager.get_all_tasks() if not t.completed]
 
-        if not self._validate_sorting_priority():
-            print("Priority relationships contain cycles, cannot sort.")
-            self.parent.page.open(ft.SnackBar(
-                ft.Text("Priority relationships contain cycles. Please adjust your choices."),
-                bgcolor=ft.Colors.ERROR_CONTAINER
-            ))
-            self.stop_sorting()
+        # Ende erreicht?
+        if self._rounds_done >= self._max_rounds:
+            self._apply_sorted_order_to_task_manager()
+            self._sorting_completed()
             return
 
-        changed = True
-        while changed:
-            changed = False
-            tasks = [t for t in self.task_manager.get_all_tasks() if not t.completed]
-            for i in range(len(tasks) - 1):
-                task_a = tasks[i]
-                task_b = tasks[i + 1]
-                pair_key = self._get_priority_key(task_a, task_b)
-                better_task_id = None
+        # Wähle zwei Tasks für den nächsten Vergleich
+        task_a, task_b = self._select_next_pair(tasks)
+        if task_a is None or task_b is None:
+            # Nichts mehr zu vergleichen
+            self._apply_sorted_order_to_task_manager()
+            self._sorting_completed()
+            return
 
-                print("Checking priority between:", task_a.title, "and", task_b.title)
-                
-                if pair_key in self.priorities:
-                    print("Found direct priority:", self.priorities[pair_key])
-                    better_task_id = self.priorities[pair_key]
-                elif len(self.priorities) > 0:
-                    # Try to find priority recursively
-                    print("No direct priority found, trying recursive search...")
-                    recursive_result = self._find_priority_recursively(task_a, task_b)
-                    print("Recursive search result:", recursive_result)
-                    if recursive_result:
-                        print("Found recursive priority:", recursive_result)
-                        # Cache the found relationship
-                        self.priorities[recursive_result[0]] = recursive_result[1]
-                        better_task_id = recursive_result[1]
-                
-                if better_task_id:
-                    print("Better task determined:", better_task_id)
-                    if better_task_id == task_b.id:
-                        print("Swapping tasks:", task_a.title, "<->", task_b.title)
-                        # swap
-                        tasks[i], tasks[i + 1] = tasks[i + 1], tasks[i]
-                        changed = True
-                else:
-                    print("No priority found, pausing sorting for user input.")
-                    self._pause_sorting_on(task_a, task_b)
-                    return  # exit sorting until user input
-        
-        # Apply new priorities to the task manager
-        self._apply_sorted_order_to_task_manager()
-        self._sorting_completed()
+        pair_key = self._get_pair_key(task_a, task_b)
+
+        if pair_key in self.priorities:
+            # Ergebnis bekannt → automatisch Elo anwenden
+            self._rounds_done += 1
+            self._update_progress_bar()
+            self._sort()
+            return
+
+        # Kein Ergebnis bekannt → User soll entscheiden
+        self._pause_sorting_on(task_a, task_b)
     
-    def _validate_sorting_priority(self):
-        # make sure that the priorities dont contain any loops that would make sorting impossible
-        # for example task_a > task_b, task_b > task_c, task_c > task_a
-        
-        all_tasks = self.task_manager.get_all_tasks()
-        task_ids = [task.id for task in all_tasks]
-        
-        # Build adjacency graph from priorities
-        graph = {task_id: [] for task_id in task_ids}
-        
-        for pair_key, better_task_id in self.priorities.items():
-            task_a_id, task_b_id = pair_key.split('_', 1)
-            if better_task_id == task_a_id:
-                # task_a > task_b, so add edge from task_a to task_b
-                if task_a_id in graph and task_b_id in task_ids:
-                    graph[task_a_id].append(task_b_id)
-            elif better_task_id == task_b_id:
-                # task_b > task_a, so add edge from task_b to task_a
-                if task_b_id in graph and task_a_id in task_ids:
-                    graph[task_b_id].append(task_a_id)
-        
-        # Detect cycles using DFS
-        visited = set()
-        rec_stack = set()
-        
-        def has_cycle_dfs(node):
-            if node in rec_stack:
-                return True  # Back edge found - cycle detected
-            if node in visited:
-                return False
-            
-            visited.add(node)
-            rec_stack.add(node)
-            
-            for neighbor in graph.get(node, []):
-                if has_cycle_dfs(neighbor):
-                    return True
-            
-            rec_stack.remove(node)
-            return False
-        
-        # Check all nodes for cycles
-        for task_id in task_ids:
-            if task_id not in visited:
-                if has_cycle_dfs(task_id):
-                    return False  # Cycle detected
-        
-        return True  # No cycles found
+    def _select_next_pair(self, tasks):
+        """Wählt das nächste Paar für Vergleich.
+           Priorisiert ähnliche Elo-Werte, vermeidet Wiederholungen.
+        """
+        untested = []
+        for i, a in enumerate(tasks):
+            for b in tasks[i + 1:]:
+                pair_key = self._get_pair_key(a, b)
+                if pair_key not in self.priorities:
+                    untested.append((a, b))
+
+        if not untested:
+            return None, None
+
+        # Wähle Paar mit minimalem Elo-Abstand, um "spannende" Vergleiche zu zeigen
+        untested.sort(key=lambda p: abs(p[0].new_elo - p[1].new_elo))
+        # zufällige Auswahl aus den ähnlichsten 20 %
+        top_n = max(1, len(untested) // 5)
+        return random.choice(untested[:top_n])
     
     def _apply_sorted_order_to_task_manager(self):
-        # Apply the sorted order to the task manager's importance values
-        # Tasks are already sorted in the correct order by the bubble sort
-        tasks = self.task_manager.get_all_tasks()
-        
-        # Set importance values in descending order (highest priority = highest importance)
-        # The first task in the sorted list gets the highest importance
-        for index, task in enumerate(tasks):
-            # Assign importance in reverse order: first task gets highest value
-            new_importance = len(tasks) - index
-            task.importance = new_importance
+        for task in self.task_manager.get_all_tasks():
+            # Assign the new Elo value calculated during sorting
+            task.elo = round(task.new_elo)
         
         # Save the updated importance values
         self.task_manager.trigger_save()
     
+    def _update_progress_bar(self):
+        progress = self._rounds_done / self._max_rounds
+        self.progess_bar.value = progress
+        self.parent.page.update()
+    
     def _start_sorting(self, e):
+        self.progess_bar.visible = True
         self.start_btn.visible = False
         self.priorities = {}
         self.sort_complete_text.visible = False
+        self.priorities = {}
+        self._rounds_done = 0
+        self._update_progress_bar()
+        self._max_rounds = estimated_comparisons(len([t for t in self.task_manager.get_all_tasks() if not t.completed]))
+        self._reset_elos()
         self.parent.page.update()
         self._sort()
 
@@ -373,18 +346,11 @@ class TaskSortPage(UIBase):
     
     def _top_task_selected(self, e):
         task_a, task_b = self.top_tasks_container.data
-        pair_key = self._get_priority_key(task_a, task_b)
+        pair_key = self._get_pair_key(task_a, task_b)
         self.priorities[pair_key] = task_a.id
-        
-        # Validate priorities for cycles
-        if not self._validate_sorting_priority():
-            # Remove the problematic priority and show error
-            del self.priorities[pair_key]
-            self.parent.page.open(ft.SnackBar(
-                ft.Text("This choice would create a cycle in priorities. Please choose differently."),
-                bgcolor=ft.Colors.ERROR_CONTAINER
-            ))
-            return
+        self._update_elo(task_a, task_b)
+        self._rounds_done += 1
+        self._update_progress_bar()
         
         self.top_tasks_container.visible = False
         self.top_tasks_container.content = None
@@ -395,18 +361,11 @@ class TaskSortPage(UIBase):
     
     def _bottom_task_selected(self, e):
         task_a, task_b = self.bottom_tasks_container.data
-        pair_key = self._get_priority_key(task_a, task_b)
+        pair_key = self._get_pair_key(task_a, task_b)
         self.priorities[pair_key] = task_b.id
-        
-        # Validate priorities for cycles
-        if not self._validate_sorting_priority():
-            # Remove the problematic priority and show error
-            del self.priorities[pair_key]
-            self.parent.page.open(ft.SnackBar(
-                ft.Text("This choice would create a cycle in priorities. Please choose differently."),
-                bgcolor=ft.Colors.ERROR_CONTAINER
-            ))
-            return
+        self._update_elo(task_b, task_a)
+        self._rounds_done += 1
+        self._update_progress_bar()
         
         self.top_tasks_container.visible = False
         self.top_tasks_container.content = None
@@ -416,6 +375,7 @@ class TaskSortPage(UIBase):
         self._sort()
 
     def stop_sorting(self):
+        self.progess_bar.visible = False
         self.top_tasks_container.visible = False
         self.top_tasks_container.content = None
         self.bottom_tasks_container.visible = False
@@ -426,6 +386,7 @@ class TaskSortPage(UIBase):
         self.parent.page.update()
 
     def _sorting_completed(self):
+        self.progess_bar.visible = False
         self.top_tasks_container.visible = False
         self.top_tasks_container.content = None
         self.bottom_tasks_container.visible = False
@@ -467,6 +428,11 @@ class TaskSortPage(UIBase):
             visible=False
         )
 
+        self.progess_bar = ft.ProgressBar(
+            width=400,
+            visible=False
+        )
+
         content = ft.Container(
             expand=True,
             alignment=ft.alignment.center,
@@ -477,6 +443,7 @@ class TaskSortPage(UIBase):
                 controls=[
                     ft.Text("Sort Tasks by Importance", style=ft.TextStyle(size=20)),
                     self.start_btn,
+                    self.progess_bar,
                     self.sort_complete_text,
                     self.top_tasks_container,
                     self.bottom_tasks_container
