@@ -49,13 +49,13 @@ class Task:
                 completed_at = None
         
         task = Task(
-            id=data.get("id", uuid4()),
             title=data["title"],
             description=data["description"],
             due_date=due_date,
             completed=data.get("completed", False),
             importance=data.get("importance", 1),
         )
+        task.id = data.get("id", uuid4())
         task.completed_at = completed_at
         return task
 

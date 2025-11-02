@@ -143,12 +143,344 @@ class TaskItem:
         )
         return self.item
 
+
+class TaskSortPage(UIBase):
+    def __init__(self, parent, task_manager: TaskManager):
+        super().__init__(parent)
+        self.task_manager = task_manager
+        self.start_btn = None
+        self.top_tasks_container = None
+        self.bottom_tasks_container = None
+        self.sort_complete_text = None
+        self.priorities = {}
+    
+    def _get_priority_key(self, task_a, task_b):
+        tab = [task_a.id, task_b.id]
+        tab.sort()
+        return f"{tab[0]}_{tab[1]}"
+    
+    def _find_priority_recursively(self, task_a, task_b, visited=None):
+        # die genaue Priorität zwischen task_a und task_b ist in der Kombination eventuell noch nicht definiert
+        # aber kann möglicherise ermittelt werden in dem man die beziehungen zu anderen Tasks untersucht
+        # zum Beispiel wenn task_a > task_c und task_c > task_b dann ist task_a > task_b
+        # diese funktion soll das rekursiv versuchen zu ermitteln und falls ja einen key, value tupple zurückgeben
+        # oder none wenn nicht möglich
+        
+        if visited is None:
+            visited = set()
+        
+        # Avoid infinite loops - use normalized key
+        pair_key = self._get_priority_key(task_a, task_b)
+        if pair_key in visited:
+            return None
+        visited.add(pair_key)
+        
+        # Check direct relationship
+        if pair_key in self.priorities:
+            return (pair_key, self.priorities[pair_key])
+        
+        # Try to find indirect relationship through other tasks
+        all_tasks = [t for t in self.task_manager.get_all_tasks() if not t.completed]
+        
+        for intermediate_task in all_tasks:
+            if intermediate_task.id == task_a.id or intermediate_task.id == task_b.id:
+                continue
+            
+            # Check if task_a > intermediate_task and intermediate_task > task_b
+            key_a_to_c = self._get_priority_key(task_a, intermediate_task)
+            key_c_to_b = self._get_priority_key(intermediate_task, task_b)
+            
+            if (key_a_to_c in self.priorities and self.priorities[key_a_to_c] == task_a.id and
+                key_c_to_b in self.priorities and self.priorities[key_c_to_b] == intermediate_task.id):
+                # task_a > intermediate_task > task_b, so task_a > task_b
+                return (pair_key, task_a.id)
+            
+            # Check if task_b > intermediate_task and intermediate_task > task_a
+            key_b_to_c = self._get_priority_key(task_b, intermediate_task)
+            key_c_to_a = self._get_priority_key(intermediate_task, task_a)
+            
+            if (key_b_to_c in self.priorities and self.priorities[key_b_to_c] == task_b.id and
+                key_c_to_a in self.priorities and self.priorities[key_c_to_a] == intermediate_task.id):
+                # task_b > intermediate_task > task_a, so task_b > task_a
+                return (pair_key, task_b.id)
+            
+            # Try recursive search through intermediate task
+            recursive_result_a_c = self._find_priority_recursively(task_a, intermediate_task, visited.copy())
+            recursive_result_c_b = self._find_priority_recursively(intermediate_task, task_b, visited.copy())
+            
+            if (recursive_result_a_c and recursive_result_a_c[1] == task_a.id and
+                recursive_result_c_b and recursive_result_c_b[1] == intermediate_task.id):
+                # task_a > intermediate_task > task_b, so task_a > task_b
+                return (pair_key, task_a.id)
+            
+            if (recursive_result_a_c and recursive_result_a_c[1] == intermediate_task.id and
+                recursive_result_c_b and recursive_result_c_b[1] == task_b.id):
+                # intermediate_task > task_a and task_b > intermediate_task, so task_b > task_a
+                return (pair_key, task_b.id)
+        
+        return None
+
+    def _sort(self):
+        # basically bubble sort but to compare we will find f"{task_a.id}_{task_b.id}" in priorities to find the better tast.id
+        # if not found we will call _pause_sorting_on(task_a, task_b) and stop the sorting until user provides input
+        # after the input the _sort will be called again
+        changed = True
+        while changed:
+            changed = False
+            tasks = [t for t in self.task_manager.get_all_tasks() if not t.completed]
+            for i in range(len(tasks) - 1):
+                task_a = tasks[i]
+                task_b = tasks[i + 1]
+                pair_key = self._get_priority_key(task_a, task_b)
+                better_task_id = None
+
+                print("Checking priority between:", task_a.title, "and", task_b.title)
+                
+                if pair_key in self.priorities:
+                    print("Found direct priority:", self.priorities[pair_key])
+                    better_task_id = self.priorities[pair_key]
+                elif len(self.priorities) > 0:
+                    # Try to find priority recursively
+                    print("No direct priority found, trying recursive search...")
+                    recursive_result = self._find_priority_recursively(task_a, task_b)
+                    print("Recursive search result:", recursive_result)
+                    if recursive_result:
+                        print("Found recursive priority:", recursive_result)
+                        # Cache the found relationship
+                        self.priorities[recursive_result[0]] = recursive_result[1]
+                        better_task_id = recursive_result[1]
+                
+                if better_task_id:
+                    print("Better task determined:", better_task_id)
+                    if better_task_id == task_b.id:
+                        print("Swapping tasks:", task_a.title, "<->", task_b.title)
+                        # swap
+                        tasks[i], tasks[i + 1] = tasks[i + 1], tasks[i]
+                        changed = True
+                else:
+                    print("No priority found, pausing sorting for user input.")
+                    self._pause_sorting_on(task_a, task_b)
+                    return  # exit sorting until user input
+        
+        # Apply new priorities to the task manager
+        self._apply_sorted_order_to_task_manager()
+        self._sorting_completed()
+    
+    def _validate_sorting_priority(self):
+        # make sure that the priorities dont contain any loops that would make sorting impossible
+        # for example task_a > task_b, task_b > task_c, task_c > task_a
+        
+        all_tasks = self.task_manager.get_all_tasks()
+        task_ids = [task.id for task in all_tasks]
+        
+        # Build adjacency graph from priorities
+        graph = {task_id: [] for task_id in task_ids}
+        
+        for pair_key, better_task_id in self.priorities.items():
+            task_a_id, task_b_id = pair_key.split('_', 1)
+            if better_task_id == task_a_id:
+                # task_a > task_b, so add edge from task_a to task_b
+                if task_a_id in graph and task_b_id in task_ids:
+                    graph[task_a_id].append(task_b_id)
+            elif better_task_id == task_b_id:
+                # task_b > task_a, so add edge from task_b to task_a
+                if task_b_id in graph and task_a_id in task_ids:
+                    graph[task_b_id].append(task_a_id)
+        
+        # Detect cycles using DFS
+        visited = set()
+        rec_stack = set()
+        
+        def has_cycle_dfs(node):
+            if node in rec_stack:
+                return True  # Back edge found - cycle detected
+            if node in visited:
+                return False
+            
+            visited.add(node)
+            rec_stack.add(node)
+            
+            for neighbor in graph.get(node, []):
+                if has_cycle_dfs(neighbor):
+                    return True
+            
+            rec_stack.remove(node)
+            return False
+        
+        # Check all nodes for cycles
+        for task_id in task_ids:
+            if task_id not in visited:
+                if has_cycle_dfs(task_id):
+                    return False  # Cycle detected
+        
+        return True  # No cycles found
+    
+    def _apply_sorted_order_to_task_manager(self):
+        # Apply the sorted order to the task manager's importance values
+        # Tasks are already sorted in the correct order by the bubble sort
+        tasks = self.task_manager.get_all_tasks()
+        
+        # Set importance values in descending order (highest priority = highest importance)
+        # The first task in the sorted list gets the highest importance
+        for index, task in enumerate(tasks):
+            # Assign importance in reverse order: first task gets highest value
+            new_importance = len(tasks) - index
+            task.importance = new_importance
+        
+        # Save the updated importance values
+        self.task_manager.trigger_save()
+    
+    def _start_sorting(self, e):
+        self.start_btn.visible = False
+        self.priorities = {}
+        self.sort_complete_text.visible = False
+        self.parent.page.update()
+        self._sort()
+
+    def _pause_sorting_on(self, task_a, task_b):
+        self.top_tasks_container.data = (task_a, task_b)
+        self.top_tasks_container.content = ft.Column(
+            controls=[
+                ft.Text(task_a.title, style=ft.TextStyle(size=16)),
+                ft.Text(task_a.description, style=ft.TextStyle(size=14, color=ft.Colors.ON_SURFACE_VARIANT))
+            ]
+        )
+        self.top_tasks_container.visible = True
+
+        self.bottom_tasks_container.data = (task_a, task_b)
+        self.bottom_tasks_container.content = ft.Column(
+            controls=[
+                ft.Text(task_b.title, style=ft.TextStyle(size=16)),
+                ft.Text(task_b.description, style=ft.TextStyle(size=14, color=ft.Colors.ON_SURFACE_VARIANT))
+            ]
+        )
+        self.bottom_tasks_container.visible = True
+
+        self.parent.page.update()
+    
+    def _top_task_selected(self, e):
+        task_a, task_b = self.top_tasks_container.data
+        pair_key = self._get_priority_key(task_a, task_b)
+        self.priorities[pair_key] = task_a.id
+        
+        # Validate priorities for cycles
+        if not self._validate_sorting_priority():
+            # Remove the problematic priority and show error
+            del self.priorities[pair_key]
+            self.parent.page.open(ft.SnackBar(
+                ft.Text("This choice would create a cycle in priorities. Please choose differently."),
+                bgcolor=ft.Colors.ERROR_CONTAINER
+            ))
+            return
+        
+        self.top_tasks_container.visible = False
+        self.top_tasks_container.content = None
+        self.bottom_tasks_container.visible = False
+        self.bottom_tasks_container.content = None
+        self.parent.page.update()
+        self._sort()
+    
+    def _bottom_task_selected(self, e):
+        task_a, task_b = self.bottom_tasks_container.data
+        pair_key = self._get_priority_key(task_a, task_b)
+        self.priorities[pair_key] = task_b.id
+        
+        # Validate priorities for cycles
+        if not self._validate_sorting_priority():
+            # Remove the problematic priority and show error
+            del self.priorities[pair_key]
+            self.parent.page.open(ft.SnackBar(
+                ft.Text("This choice would create a cycle in priorities. Please choose differently."),
+                bgcolor=ft.Colors.ERROR_CONTAINER
+            ))
+            return
+        
+        self.top_tasks_container.visible = False
+        self.top_tasks_container.content = None
+        self.bottom_tasks_container.visible = False
+        self.bottom_tasks_container.content = None
+        self.parent.page.update()
+        self._sort()
+
+    def stop_sorting(self):
+        self.top_tasks_container.visible = False
+        self.top_tasks_container.content = None
+        self.bottom_tasks_container.visible = False
+        self.bottom_tasks_container.content = None
+        self.start_btn.visible = True
+        self.sort_complete_text.visible = False
+        self.priorities = {}
+        self.parent.page.update()
+
+    def _sorting_completed(self):
+        self.top_tasks_container.visible = False
+        self.top_tasks_container.content = None
+        self.bottom_tasks_container.visible = False
+        self.bottom_tasks_container.content = None
+        self.sort_complete_text.visible = True
+        self.start_btn.visible = True
+        self.parent.page.update()
+    
+    def _get_content(self, page:ft.Page):
+
+        self.start_btn = ft.ElevatedButton(
+            text="Start Sorting Tasks",
+            on_click=self._start_sorting
+        )
+
+        self.top_tasks_container = ft.Container(
+            visible=False,
+            on_click=self._top_task_selected,
+            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+            width=400,
+            padding=ft.padding.all(10),
+            border=ft.border.all(1, ft.Colors.SECONDARY),
+            border_radius=ft.border_radius.all(4)
+        )
+
+        self.bottom_tasks_container = ft.Container(
+            visible=False,
+            on_click=self._bottom_task_selected,
+            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+            width=400,
+            padding=ft.padding.all(10),
+            border=ft.border.all(1, ft.Colors.SECONDARY),
+            border_radius=ft.border_radius.all(4)
+        )
+
+        self.sort_complete_text = ft.Text(
+            "Sorting Complete!",
+            style=ft.TextStyle(size=16, color=ft.Colors.GREEN),
+            visible=False
+        )
+
+        content = ft.Container(
+            expand=True,
+            alignment=ft.alignment.center,
+            content=ft.Column(
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=20,
+                controls=[
+                    ft.Text("Sort Tasks by Importance", style=ft.TextStyle(size=20)),
+                    self.start_btn,
+                    self.sort_complete_text,
+                    self.top_tasks_container,
+                    self.bottom_tasks_container
+                ]
+            )
+        )
+
+        return content
+
+
 class Organizer(UIBase):
 
     def __init__(self, parent, task_manager: TaskManager):
         super().__init__(parent)
         self.task_manager = task_manager
         self.drawer = None
+        self.task_sort_page = TaskSortPage(parent, task_manager)
 
         self.new_task_content = None
         self.sort_tasks_content = None
@@ -167,14 +499,15 @@ class Organizer(UIBase):
         self.goto_page(selected_index)
     
     def goto_page(self, index: int):
-        self.drawer.selected_index = index
+        # if drawer is in page
+        if self.drawer.open:
+            self.drawer.selected_index = index
+            self.parent.page.close(self.drawer)
 
         self.new_task_content.visible = (index == 0)
         self.sort_tasks_content.visible = (index == 1)
         self.recently_completed_content.visible = (index == 2)
         self.all_tasks_content.visible = (index == 3)
-
-        self.parent.page.close(self.drawer)
 
         if index == 2:
             self._load_recently_completed()
@@ -185,6 +518,9 @@ class Organizer(UIBase):
             self._load_all_tasks()
         else:
             self._unload_all_tasks()
+        
+        if index != 1:
+            self.task_sort_page.stop_sorting()
 
         self.parent.page.update()
 
@@ -357,9 +693,8 @@ class Organizer(UIBase):
             )
         )
 
-        self.sort_tasks_content = ft.Container(
-            visible=False
-        )
+        self.sort_tasks_content = self.task_sort_page.get_content(page)
+        self.sort_tasks_content.visible = False
 
         self.recently_completed_content = ft.Column(
             expand=True,
