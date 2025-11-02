@@ -2,10 +2,16 @@
 
 from datetime import date, datetime
 import json
+import random
+
+
+def uuid4():
+    return ''.join([hex(random.randint(0, 15))[2:] for _ in range(32)])
 
 
 class Task:
     def __init__(self, title: str, description: str, due_date: date|None = None, completed: bool = False, importance: int = 1):
+        self.id = uuid4()
         self.title = title
         self.description = description
         self.due_date = due_date
@@ -15,6 +21,7 @@ class Task:
 
     def to_dict(self):
         return {
+            "id": self.id,
             "title": self.title,
             "description": self.description,
             "due_date": self.due_date.isoformat() if self.due_date else None,
@@ -42,6 +49,7 @@ class Task:
                 completed_at = None
         
         task = Task(
+            id=data.get("id", uuid4()),
             title=data["title"],
             description=data["description"],
             due_date=due_date,
@@ -56,6 +64,7 @@ class TaskManager:
     def __init__(self, storage_file: str = "tasks.json"):
         self.storage_file = storage_file
         self.tasks = self.load_tasks()
+        self._make_uuids_unique()
         self.callbacks = []
     
     def on_tasks_updated(self, callback):
@@ -67,6 +76,13 @@ class TaskManager:
                 callback()
             except Exception as e:
                 print(f"Error in callback: {e}")
+    
+    def _make_uuids_unique(self):
+        existing_ids = set()
+        for task in self.tasks:
+            while task.id in existing_ids:
+                task.id = uuid4()
+            existing_ids.add(task.id)
 
     def load_tasks(self):
         try:
@@ -77,6 +93,7 @@ class TaskManager:
             return []
 
     def save_tasks(self):
+        self._make_uuids_unique()
         with open(self.storage_file, "w") as f:
             json.dump([task.to_dict() for task in self.tasks], f, indent=4)
     
