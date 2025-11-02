@@ -18,6 +18,7 @@ class TaskItem:
         self.date_picker_btn = None
         self.date_del_btn = None
         self.date_picker = None
+        self.completet_at_text = None
         self.item = None
     
     def _delete_due_date(self, e):
@@ -63,6 +64,7 @@ class TaskItem:
         btn.icon=ft.Icons.CHECK_CIRCLE if task.completed else ft.Icons.CIRCLE_OUTLINED
         btn.text="Done" if task.completed else "To Do"
         btn.icon_color=ft.Colors.GREEN if task.completed else ft.Colors.PRIMARY
+        self.completet_at_text.value = f"Completed: {task.completed_at.strftime('%Y-%m-%d %H:%M')}" if task.completed and task.completed_at else ""
         self.page.update()
     
     def get_item(self):
@@ -101,6 +103,10 @@ class TaskItem:
             visible=False,
             on_click=self._cancel_delete_click
         )
+        self.completet_at_text = ft.Text(
+            f"Completed: {self.task.completed_at.strftime('%Y-%m-%d %H:%M')}" if self.task.completed and self.task.completed_at else "",
+            style=ft.TextStyle(size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+        )
         self.item = ft.Container(
             content=ft.Column(
                 controls=[
@@ -116,6 +122,8 @@ class TaskItem:
                     ft.Row(
                         alignment=ft.MainAxisAlignment.END,
                         controls=[
+                            self.completet_at_text,
+                            ft.Container(expand=True),
                             self.confirm_delete_btn,
                             self.cancel_delete_btn,
                             self.delete_button,
@@ -168,6 +176,11 @@ class Organizer(UIBase):
 
         self.parent.page.close(self.drawer)
 
+        if index == 2:
+            self._load_recently_completed()
+        else:
+            self._unload_recently_completed()
+
         if index == 3:
             self._load_all_tasks()
         else:
@@ -194,6 +207,27 @@ class Organizer(UIBase):
 
     def _unload_all_tasks(self):
         self.all_tasks_content.controls.clear()
+        self.parent.page.update()
+    
+    def _load_recently_completed(self):
+        self.recently_completed_content.controls.clear()
+        tasks = self.task_manager.get_last_completed()
+
+        if not tasks:
+            self.recently_completed_content.controls.append(
+                ft.Text("No recently completed tasks.", style=ft.TextStyle(size=16, color=ft.Colors.ON_SURFACE_VARIANT))
+            )
+            self.parent.page.update()
+
+        for task in tasks:
+            item_obj = TaskItem(task, self.task_manager, self.parent.page, self.recently_completed_content)
+            item = item_obj.get_item()
+            self.recently_completed_content.controls.append(item)
+        
+        self.parent.page.update()
+    
+    def _unload_recently_completed(self):
+        self.recently_completed_content.controls.clear()
         self.parent.page.update()
     
     def _open_due_date_picker(self, e):
@@ -326,7 +360,9 @@ class Organizer(UIBase):
         self.sort_tasks_content = ft.Container(
             visible=False
         )
-        self.recently_completed_content = ft.Container(
+
+        self.recently_completed_content = ft.Column(
+            expand=True,
             visible=False
         )
 
