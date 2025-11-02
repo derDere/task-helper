@@ -159,30 +159,46 @@ class TaskSortPage(UIBase):
         tab.sort()
         return f"{tab[0]}_{tab[1]}"
     
-    def _find_priority_recursively(self, task_a, task_b, visited=None):
+    def _find_priority_recursively(self, task_a, task_b, visited=None, depth=0):
         # die genaue Priorität zwischen task_a und task_b ist in der Kombination eventuell noch nicht definiert
         # aber kann möglicherise ermittelt werden in dem man die beziehungen zu anderen Tasks untersucht
         # zum Beispiel wenn task_a > task_c und task_c > task_b dann ist task_a > task_b
         # diese funktion soll das rekursiv versuchen zu ermitteln und falls ja einen key, value tupple zurückgeben
         # oder none wenn nicht möglich
         
+        # Prevent excessive recursion depth
+        MAX_DEPTH = 30
+        if depth > MAX_DEPTH:
+            print(f"[RECURSIVE] Max recursion depth {MAX_DEPTH} reached, stopping")
+            return None
+        
+        print(f"[RECURSIVE] Depth {depth}: Checking priority between '{task_a.title}' and '{task_b.title}'")
+        
         if visited is None:
             visited = set()
+            print(f"[RECURSIVE] Starting new recursive search, visited set initialized")
         
         # Avoid infinite loops - use normalized key
         pair_key = self._get_priority_key(task_a, task_b)
+        print(f"[RECURSIVE] Pair key: {pair_key}")
+        
         if pair_key in visited:
+            print(f"[RECURSIVE] Already visited {pair_key}, avoiding infinite loop")
             return None
         visited.add(pair_key)
+        print(f"[RECURSIVE] Added {pair_key} to visited set, size now: {len(visited)}")
         
         # Check direct relationship
         if pair_key in self.priorities:
+            print(f"[RECURSIVE] Found direct relationship: {pair_key} -> {self.priorities[pair_key]}")
             return (pair_key, self.priorities[pair_key])
         
-        # Try to find indirect relationship through other tasks
+        # Only check direct transitive relationships (no deep recursion)
+        # This prevents infinite loops while still finding simple A>C>B relationships
         all_tasks = [t for t in self.task_manager.get_all_tasks() if not t.completed]
+        print(f"[RECURSIVE] Checking {len(all_tasks)} incomplete tasks for direct transitive relationships")
         
-        for intermediate_task in all_tasks:
+        for i, intermediate_task in enumerate(all_tasks):
             if intermediate_task.id == task_a.id or intermediate_task.id == task_b.id:
                 continue
             
@@ -192,7 +208,7 @@ class TaskSortPage(UIBase):
             
             if (key_a_to_c in self.priorities and self.priorities[key_a_to_c] == task_a.id and
                 key_c_to_b in self.priorities and self.priorities[key_c_to_b] == intermediate_task.id):
-                # task_a > intermediate_task > task_b, so task_a > task_b
+                print(f"[RECURSIVE] Found transitive relationship: {task_a.title} > {intermediate_task.title} > {task_b.title}")
                 return (pair_key, task_a.id)
             
             # Check if task_b > intermediate_task and intermediate_task > task_a
@@ -201,29 +217,26 @@ class TaskSortPage(UIBase):
             
             if (key_b_to_c in self.priorities and self.priorities[key_b_to_c] == task_b.id and
                 key_c_to_a in self.priorities and self.priorities[key_c_to_a] == intermediate_task.id):
-                # task_b > intermediate_task > task_a, so task_b > task_a
-                return (pair_key, task_b.id)
-            
-            # Try recursive search through intermediate task
-            recursive_result_a_c = self._find_priority_recursively(task_a, intermediate_task, visited.copy())
-            recursive_result_c_b = self._find_priority_recursively(intermediate_task, task_b, visited.copy())
-            
-            if (recursive_result_a_c and recursive_result_a_c[1] == task_a.id and
-                recursive_result_c_b and recursive_result_c_b[1] == intermediate_task.id):
-                # task_a > intermediate_task > task_b, so task_a > task_b
-                return (pair_key, task_a.id)
-            
-            if (recursive_result_a_c and recursive_result_a_c[1] == intermediate_task.id and
-                recursive_result_c_b and recursive_result_c_b[1] == task_b.id):
-                # intermediate_task > task_a and task_b > intermediate_task, so task_b > task_a
+                print(f"[RECURSIVE] Found reverse transitive relationship: {task_b.title} > {intermediate_task.title} > {task_a.title}")
                 return (pair_key, task_b.id)
         
+        print(f"[RECURSIVE] No priority relationship found between '{task_a.title}' and '{task_b.title}'")
         return None
 
     def _sort(self):
         # basically bubble sort but to compare we will find f"{task_a.id}_{task_b.id}" in priorities to find the better tast.id
         # if not found we will call _pause_sorting_on(task_a, task_b) and stop the sorting until user provides input
         # after the input the _sort will be called again
+
+        if not self._validate_sorting_priority():
+            print("Priority relationships contain cycles, cannot sort.")
+            self.parent.page.open(ft.SnackBar(
+                ft.Text("Priority relationships contain cycles. Please adjust your choices."),
+                bgcolor=ft.Colors.ERROR_CONTAINER
+            ))
+            self.stop_sorting()
+            return
+
         changed = True
         while changed:
             changed = False
