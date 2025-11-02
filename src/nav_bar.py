@@ -18,6 +18,10 @@ class NavBar(UIBase):
         self.organizer.content.visible = (index == 0)
         self.tasks.content.visible = (index == 1)
         self.calendar.content.visible = (index == 2)
+        if index != 2:
+            self.calendar.back_to_calendar()
+        if index != 0:
+            self.organizer.goto_page(0)
         self.parent.page.update()
 
     def _get_content(self, page:ft.Page):

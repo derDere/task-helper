@@ -17,7 +17,9 @@ class Calendar(UIBase):
     
     def _day_content(self, day_date: datetime):
         date = day_date.strftime("%d.")
-        task_count = len(self.task_manager.get_task_for_date(day_date.date()))
+        tasks = self.task_manager.get_task_for_date(day_date.date())
+        task_count = len(tasks)
+        tast_done_count = len([t for t in tasks if t.completed])
         return ft.Column(
             expand=True,
             controls=[
@@ -39,7 +41,7 @@ class Calendar(UIBase):
                     controls=[
                         ft.Container(
                             content=ft.Text(
-                                str(task_count),
+                                f"{tast_done_count}/{task_count}",
                                 size=12,
                                 color=ft.Colors.ON_PRIMARY_CONTAINER,
                             ),
@@ -104,7 +106,7 @@ class Calendar(UIBase):
                 week_row.controls.append(day_item)
             self.calendar_content.controls.append(week_row)
     
-    def _back_to_calendar(self):
+    def back_to_calendar(self):
         self.day_content.visible = False
         self.calendar_content.visible = True
         self.parent.page.update()
@@ -136,7 +138,7 @@ class Calendar(UIBase):
                         ]
                     ),
                     tooltip="Back to Calendar",
-                    on_click=lambda e: self._back_to_calendar()
+                    on_click=lambda e: self.back_to_calendar()
                 )
             ]
         )
@@ -218,5 +220,7 @@ class Calendar(UIBase):
                 self.day_content
             ]
         )
+
+        self.task_manager.on_tasks_updated(self._generate_calendar)
 
         return content

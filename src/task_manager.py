@@ -5,7 +5,7 @@ import json
 
 
 class Task:
-    def __init__(self, title: str, description: str, due_date: date|None, completed: bool = False, importance: int = 1):
+    def __init__(self, title: str, description: str, due_date: date|None = None, completed: bool = False, importance: int = 1):
         self.title = title
         self.description = description
         self.due_date = due_date
@@ -79,6 +79,10 @@ class TaskManager:
     def save_tasks(self):
         with open(self.storage_file, "w") as f:
             json.dump([task.to_dict() for task in self.tasks], f, indent=4)
+    
+    def trigger_save(self):
+        self.save_tasks()
+        self._raise_tasks_updated()
 
     def add_task(self, task: Task):
         self.tasks.append(task)
@@ -86,7 +90,8 @@ class TaskManager:
         self._raise_tasks_updated()
 
     def remove_task(self, task: Task):
-        self.tasks.remove(task)
+        if task in self.tasks:
+            self.tasks.remove(task)
         self.save_tasks()
         self._raise_tasks_updated()
     
@@ -105,7 +110,9 @@ class TaskManager:
     def get_all_tasks(self):
         return self.tasks
 
-    def get_task_for_date(self, target_date: date):
+    def get_task_for_date(self, target_date: date|datetime):
+        if isinstance(target_date, datetime):
+            target_date = target_date.date()
         return [task for task in self.tasks if task.due_date == target_date]
 
     def get_top_priority_tasks(self, n: int = 3):
