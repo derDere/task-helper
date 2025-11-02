@@ -122,3 +122,22 @@ class TaskManager:
     def get_last_completed(self):
         completed_tasks = [task for task in self.tasks if task.completed and task.completed_at]
         return sorted(completed_tasks, key=lambda t: t.completed_at, reverse=True)
+    
+    def _renormalize_importance(self):
+        tasks = sorted(self.tasks, key=lambda t: t.importance, reverse=True)
+        for index, task in enumerate(tasks):
+            task.importance = len(tasks) - index
+    
+    def priorize_above(self, task: Task, other: Task):
+        if task == other:
+            return
+        if task.importance > other.importance:
+            return
+        new_importance = other.importance + 1
+        tasks_above = [t for t in self.tasks if t.importance >= new_importance and t != task]
+        for t in tasks_above:
+            t.importance += 1
+        task.importance = new_importance
+        self._renormalize_importance()
+        self.save_tasks()
+        self._raise_tasks_updated()
