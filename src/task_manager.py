@@ -5,6 +5,9 @@ import json
 import random
 
 
+STORAGE_KEY = "stored_tasks"
+
+
 def uuid4():
     return ''.join([hex(random.randint(0, 15))[2:] for _ in range(32)])
 
@@ -62,8 +65,8 @@ class Task:
 
 
 class TaskManager:
-    def __init__(self, storage_file: str = "tasks.json"):
-        self.storage_file = storage_file
+    def __init__(self, page):
+        self.page = page
         self.tasks = self.load_tasks()
         self._make_uuids_unique()
         self.callbacks = []
@@ -87,16 +90,18 @@ class TaskManager:
 
     def load_tasks(self):
         try:
-            with open(self.storage_file, "r") as f:
-                data = json.load(f)
+            datas = self.page.client_storage.get(STORAGE_KEY)
+            if datas:
+                data = json.loads(datas)
                 return [Task.from_dict(task_data) for task_data in data]
-        except FileNotFoundError:
-            return []
+        except TypeError:
+            pass
+        return []
 
     def save_tasks(self):
         self._make_uuids_unique()
-        with open(self.storage_file, "w") as f:
-            json.dump([task.to_dict() for task in self.tasks], f, indent=4)
+        data = json.dumps([task.to_dict() for task in self.tasks], indent=2)
+        self.page.client_storage.set(STORAGE_KEY, data)
     
     def trigger_save(self):
         self.save_tasks()

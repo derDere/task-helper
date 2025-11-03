@@ -12,7 +12,7 @@ from nav_bar import NavBar
 class App:
     def __init__(self, page: ft.Page):
         self.page = page
-        self.task_manager = TaskManager()
+        self.task_manager = TaskManager(self.page)
         self.organize_page = Organizer(self, self.task_manager)
         self.tasks_page = Tasks(self, self.task_manager)
         self.calendar_page = Calendar(self, self.task_manager)
