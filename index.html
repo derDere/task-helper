@@ -118,6 +118,15 @@
         }
         .features li span.icon { font-size: 1.15rem; }
         .legal { text-align: center; font-size: .75rem; opacity: .7; margin-top: 2.2rem; }
+        .repo-link-wrap { text-align:center; margin: 2.4rem 0 .6rem; }
+        .repo-link {
+            display:inline-flex; align-items:center; gap:.55rem;
+            background:#ffffff18; color:#fff; text-decoration:none;
+            padding:.65rem 1.05rem .7rem; border:1px solid #ffffff33; border-radius:12px;
+            font-size:.85rem; font-weight:600; letter-spacing:.35px;
+            backdrop-filter:blur(6px); transition:var(--transition);
+        }
+        .repo-link:hover, .repo-link:focus-visible { background:#ffffff30; transform:translateY(-2px); }
         footer { margin-top: auto; padding: 1.1rem 1.2rem 1.6rem; text-align: center; color: var(--text-light); font-size: .8rem; }
         a:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
         @media (max-width: 540px) {
@@ -141,14 +150,17 @@
             <ul class="features" aria-label="Key features">
                 <li><span class="icon">✅</span><span>Create, prioritize, and track tasks effortlessly.</span></li>
                 <li><span class="icon">🗓️</span><span>Calendar integration for deadlines & events.</span></li>
-                <li><span class="icon">🔔</span><span>Smart reminders so nothing slips by.</span></li>
+                <li><span class="icon">↩️</span><span>Recently completed list (undo mistakes).</span></li>
                 <li><span class="icon">☁️</span><span>Cross‑platform architecture (Flutter + Python).</span></li>
             </ul>
             <p class="legal">By downloading you agree to use Task Helper responsibly. No warranties expressed or implied.</p>
         </section>
     </main>
+    <div class="repo-link-wrap">
+        <a class="repo-link" href="https://github.com/derDere/task-helper" target="_blank" rel="noopener" aria-label="View TaskHelper source code on GitHub">🧪 View Source on GitHub</a>
+    </div>
     <footer>
-        <span>&copy; <span id="year"></span> Task Helper. All rights reserved.</span>
+        <span>&copy; <span id="year"></span> TaskHelper. Released under the <a href="LICENSE" style="color:#fff;text-decoration:underline" aria-label="Read the GNU GPL v3 license">GNU GPL v3</a>. No warranty.</span>
         <noscript><div style="margin-top:.4rem">&copy; Task Helper. All rights reserved.</div></noscript>
     </footer>
     <script>
