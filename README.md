@@ -1,5 +1,9 @@
 # TaskHelper
 
+![Screenshot](screenshot.png)
+
+[derdere.github.io/task-helper](https://derdere.github.io/task-helper/)
+
 TaskHelper is a tiny cross‑platform hobby app (built with [Flet](https://flet.dev)) that helps you stay focused on only your TOP 3 personal chores or free‑time tasks instead of drowning in an endless list. You add tasks quickly, optionally give them a due date, then run a super‑light pairwise comparison to let a simple Elo algorithm float the most important items to the surface. The Tasks page only shows what really matters now; everything else waits quietly.
 
 > Goal: Make daily task triage frictionless – add quickly, prioritize intelligently, execute confidently.
