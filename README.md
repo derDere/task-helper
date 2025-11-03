@@ -55,6 +55,27 @@ For more details on running the app, refer to the [Getting Started Guide](https:
 
 ## Build the app
 
+### Automated Builds (CI/CD)
+
+The repository includes a GitHub Actions workflow that automatically builds APKs and creates releases.
+
+**To create a release:**
+
+1. Create and push a version tag:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. The workflow will automatically:
+   - Build the APK
+   - Create a GitHub release
+   - Upload the APK to the release
+
+**Manual build via GitHub Actions:**
+
+You can also trigger a build manually from the GitHub Actions tab by running the "Build APK and Create Release" workflow.
+
 ### Android
 
 ```

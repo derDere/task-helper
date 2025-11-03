@@ -164,3 +164,6 @@ storage/
 
 # Data
 tasks.json
+
+# Flet build artifacts
+build/
