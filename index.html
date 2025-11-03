@@ -3,14 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Download</title>
+    <meta name="description" content="TaskHelper – tiny cross‑platform hobby app that keeps you focused on ONLY your current top 3 personal tasks using a quick Elo pairwise prioritizer." />
+    <title>Task Helper – Download</title>
+    <style>
+        :root {
+            --bg-gradient-start: #1e3c72;
+            --bg-gradient-end: #2a5298;
+            --card-bg: #ffffffee;
+            --accent: #ffb347;
+            --accent-hover: #ffa022;
+            --text-dark: #1f2937;
+            --text-light: #f9fafb;
+            --max-width: 760px;
+            --radius: 18px;
+            --shadow: 0 8px 24px -6px rgba(0,0,0,0.25);
+            --transition: 160ms ease;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui,-apple-system,'Segoe UI',Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif;
+            line-height: 1.5;
+            color: var(--text-dark);
+            background: linear-gradient(135deg,var(--bg-gradient-start),var(--bg-gradient-end));
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            padding: 2.8rem 1.5rem 1rem;
+            text-align: center;
+            color: var(--text-light);
+        }
+        header h1 {
+            margin: 0 0 .75rem;
+            font-size: clamp(2.2rem,5vw,3.2rem);
+            letter-spacing: .5px;
+        }
+        header p.tagline {
+            margin: .35rem auto 0;
+            max-width: 54ch;
+            font-weight: 600;
+            font-size: clamp(1.02rem,2.2vw,1.25rem);
+            line-height: 1.35;
+            background: linear-gradient(90deg,rgba(255,255,255,.22),rgba(255,255,255,.06));
+            padding: .75rem 1.1rem .8rem;
+            border: 1px solid rgba(255,255,255,.22);
+            border-radius: 14px;
+            box-shadow: 0 4px 18px -6px rgba(0,0,0,.35);
+            backdrop-filter: blur(6px);
+        }
+        main {
+            width: 100%;
+            max-width: var(--max-width);
+            margin: 0 auto 2.4rem;
+            padding: 0 1.5rem 2rem;
+        }
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(4px);
+            border-radius: var(--radius);
+            padding: 2rem 2.4rem 2.4rem;
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 85% 15%, rgba(255,255,255,0.7), transparent 60%);
+            pointer-events: none;
+            opacity: .4;
+        }
+        .download-actions { text-align: center; margin-top: 1.6rem; }
+        .download-btn {
+            --btn-pad-y: .9rem;
+            --btn-pad-x: 2.1rem;
+            display: inline-flex;
+            align-items: center;
+            gap: .6rem;
+            padding: var(--btn-pad-y) var(--btn-pad-x);
+            background: var(--accent);
+            color: #221a00;
+            font-size: 1.05rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 999px;
+            text-decoration: none;
+            box-shadow: 0 4px 14px -4px rgba(0,0,0,.35);
+            transition: var(--transition);
+        }
+        .download-btn:hover, .download-btn:focus-visible { background: var(--accent-hover); transform: translateY(-2px); box-shadow: 0 6px 18px -6px rgba(0,0,0,.4); }
+        .download-btn:active { transform: translateY(0); }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
+            gap: 1.2rem 1.4rem;
+            margin-top: 1.6rem;
+            padding: 0;
+            list-style: none;
+        }
+        .features li {
+            background: linear-gradient(145deg,#ffffff,#f1f5f9);
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: .85rem 1rem 1rem;
+            font-size: .95rem;
+            display: flex;
+            gap: .55rem;
+            align-items: flex-start;
+            line-height: 1.35;
+            position: relative;
+        }
+        .features li span.icon { font-size: 1.15rem; }
+        .legal { text-align: center; font-size: .75rem; opacity: .7; margin-top: 2.2rem; }
+        footer { margin-top: auto; padding: 1.1rem 1.2rem 1.6rem; text-align: center; color: var(--text-light); font-size: .8rem; }
+        a:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+        @media (max-width: 540px) {
+            .card { padding: 1.6rem 1.3rem 2rem; }
+            .features { grid-template-columns: 1fr; }
+        }
+    </style>
 </head>
 <body>
-    <h1>Task Helper</h1>
-    <hr />
-    <center>
-        <a href="app-release.apk" download>APK</a>
-    </center>
-    <hr />
+    <header>
+        <h1>TaskHelper</h1>
+        <p class="tagline">Stay laser‑focused on ONLY your current top 3 personal chores or free‑time tasks. Add quickly, then let a super‑light Elo pairwise comparison float what matters now.</p>
+    </header>
+    <main>
+        <section class="card" aria-labelledby="download-heading">
+            <h2 id="download-heading" style="margin-top:0">Download</h2>
+            <p>Get the most recent Android APK. Built with Flutter and optimized for productivity on the go.</p>
+            <div class="download-actions">
+                <a class="download-btn" href="task-helper.apk" download aria-label="Download Task Helper Android APK">📦 <span>Download APK</span></a>
+            </div>
+            <ul class="features" aria-label="Key features">
+                <li><span class="icon">✅</span><span>Create, prioritize, and track tasks effortlessly.</span></li>
+                <li><span class="icon">🗓️</span><span>Calendar integration for deadlines & events.</span></li>
+                <li><span class="icon">🔔</span><span>Smart reminders so nothing slips by.</span></li>
+                <li><span class="icon">☁️</span><span>Cross‑platform architecture (Flutter + Python).</span></li>
+            </ul>
+            <p class="legal">By downloading you agree to use Task Helper responsibly. No warranties expressed or implied.</p>
+        </section>
+    </main>
+    <footer>
+        <span>&copy; <span id="year"></span> Task Helper. All rights reserved.</span>
+        <noscript><div style="margin-top:.4rem">&copy; Task Helper. All rights reserved.</div></noscript>
+    </footer>
+    <script>
+        // Set dynamic current year
+        (function(){
+            var yEl = document.getElementById('year');
+            if (yEl) { yEl.textContent = new Date().getFullYear(); }
+        })();
+    </script>
 </body>
 </html>
