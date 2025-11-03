@@ -1,6 +1,7 @@
 
 
 import flet as ft
+from datetime import datetime
 
 from ui_base import UIBase
 
@@ -18,10 +19,22 @@ class NavBar(UIBase):
         self.organizer.content.visible = (index == 0)
         self.tasks.content.visible = (index == 1)
         self.calendar.content.visible = (index == 2)
+        
         if index != 2:
             self.calendar.back_to_calendar()
+        else:
+            self.parent.page.appbar.title = ft.Text(datetime.now().strftime("%B %Y"))
+
         if index != 0:
             self.organizer.goto_page(0)
+            self.organizer.menu_btn.visible = False
+        else:
+            self.organizer.menu_btn.visible = True
+            self.parent.page.appbar.title = ft.Text("Organize Tasks")
+        
+        if index == 1:
+            self.parent.page.appbar.title = ft.Text("Next Tasks", style=ft.TextThemeStyle.HEADLINE_MEDIUM)
+
         self.parent.page.update()
 
     def _get_content(self, page:ft.Page):

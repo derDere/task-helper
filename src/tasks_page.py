@@ -100,7 +100,7 @@ class Tasks(UIBase):
             scroll=ft.ScrollMode.AUTO,
             expand=True,
             controls=[
-                ft.Text("Next Tasks", style=ft.TextThemeStyle.HEADLINE_MEDIUM),
+                #ft.Text("Next Tasks", style=ft.TextThemeStyle.HEADLINE_MEDIUM),
                 ft.Text("Here are your upcoming tasks:", style=ft.TextThemeStyle.BODY_MEDIUM),
                 self.tast_column,
             ],

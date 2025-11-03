@@ -462,6 +462,7 @@ class Organizer(UIBase):
         self.drawer = None
         self.task_sort_page = TaskSortPage(parent, task_manager)
 
+        self.menu_btn = None
         self.new_task_content = None
         self.sort_tasks_content = None
         self.recently_completed_content = None
@@ -627,9 +628,16 @@ class Organizer(UIBase):
             ]
         )
 
-        menu_btn = ft.IconButton(
+        self.menu_btn = ft.IconButton(
             icon=ft.Icons.MENU,
-            on_click=lambda e: page.open(self.drawer)
+            on_click=lambda e: page.open(self.drawer),
+            visible=False
+        )
+
+        page.appbar = ft.AppBar(
+            title=ft.Text("Next Tasks"),
+            leading=self.menu_btn,
+            center_title=True,
         )
 
         self.due_date_button = ft.OutlinedButton(
@@ -689,7 +697,6 @@ class Organizer(UIBase):
         content = ft.Column(
             expand=True,
             controls=[
-                menu_btn,
                 self.new_task_content,
                 self.sort_tasks_content,
                 self.recently_completed_content,
